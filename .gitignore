@@ -1,0 +1,12 @@
+# VSCode settings and extensions
+.vscode/
+*.code-workspace
+
+# System files
+AppData/
+*.log
+*.jtx
+
+# Python cache
+__pycache__/
+*.pyc
