@@ -1029,64 +1029,61 @@ st.pyplot(fig)
 
 
 # ========================= 🔮 SALES FORECASTING =========================
-# ========================= 🔮 SALES FORECASTING =========================
-from prophet import Prophet
+# --- Prepare Data ---
+from pmdarima import auto_arima
 import pandas as pd
 import matplotlib.pyplot as plt
-import streamlit as st
 
 # --- Prepare data ---
 sales_df = sales_df.copy()
-sales_df = sales_df.rename(columns={'Month_dt': 'ds', 'Sales': 'y'})
-sales_df['ds'] = pd.to_datetime(sales_df['ds'])  # Prophet requires datetime
+sales_df = sales_df.set_index('Month_dt').asfreq('MS')  # Ensure monthly frequency
 
-# --- Fit model ---
-model = Prophet(yearly_seasonality=True)
-model.fit(sales_df)
+model = auto_arima(
+    sales_df['Sales'],
+    seasonal=True,
+    m=12,
+    stepwise=True,
+    suppress_warnings=True,
+    trace=True,
+    information_criterion='aic'  # use BIC instead of AIC
+)
 
-# --- Forecast next 3 months ---
+
+# --- Forecast ---
 n_periods = 3
-future = model.make_future_dataframe(periods=n_periods, freq='MS')
-forecast = model.predict(future)
+forecast, conf_int = model.predict(n_periods=n_periods, return_conf_int=True)
 
-# --- Extract forecast ---
-forecast_df = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(n_periods)
-forecast_df = forecast_df.rename(columns={
-    'ds': 'Month',
-    'yhat': 'Predicted Sales',
-    'yhat_lower': 'Lower Bound',
-    'yhat_upper': 'Upper Bound'
+forecast_index = pd.date_range(start=sales_df.index[-1] + pd.offsets.MonthBegin(1), periods=n_periods, freq='MS')
+forecast_df = pd.DataFrame({
+    'Month': forecast_index,
+    'Predicted Sales': forecast,
+    'Lower Bound': conf_int[:, 0],
+    'Upper Bound': conf_int[:, 1]
 }).round(0).astype({'Predicted Sales': int, 'Lower Bound': int, 'Upper Bound': int})
-
-# Keep datetime for plotting, add string column for table
-forecast_df['Month_str'] = forecast_df['Month'].dt.strftime('%B %Y')
+forecast_df['Month'] = forecast_df['Month'].dt.strftime('%B %Y')
 
 # --- Plot ---
 fig, ax = plt.subplots(figsize=(12, 5))
-ax.plot(sales_df['ds'], sales_df['y'], label='Historical Sales')
-ax.plot(forecast_df['Month'], forecast_df['Predicted Sales'], label='Forecast')
-ax.fill_between(forecast_df['Month'],
-                forecast_df['Lower Bound'],
-                forecast_df['Upper Bound'],
-                color='gray', alpha=0.3)
-ax.set_title("Sales Forecast (Prophet)")
+ax.plot(sales_df.index, sales_df['Sales'], label='Historical Sales')
+ax.plot(forecast_index, forecast, label='Forecast')
+ax.fill_between(forecast_index, conf_int[:, 0], conf_int[:, 1], color='gray', alpha=0.3)
+ax.set_title("Sales Forecast (AutoARIMA)")
 ax.legend()
-plt.xticks(rotation=45)  # Rotate x-axis labels for readability
 st.pyplot(fig)
 
 # --- Summary ---
 st.metric(
-    label="🔮 3-Month Forecast Total (Prophet)",
+    label="🔮 3-Month Forecast Total (AutoARIMA)",
     value=f"R{forecast_df['Predicted Sales'].sum():,.0f}",
     delta=f"Range: R{forecast_df['Lower Bound'].sum():,.0f} – R{forecast_df['Upper Bound'].sum():,.0f}"
 )
 
 # --- Table ---
 st.markdown("#### 📈 Forecasted Monthly Sales")
-st.dataframe(
-    forecast_df[['Month_str', 'Predicted Sales', 'Lower Bound', 'Upper Bound']],
-    use_container_width=True
-)
+st.dataframe(forecast_df, use_container_width=True)
+
+
+
 # === Footer Section ===
 # Footer
 st.markdown("---")
