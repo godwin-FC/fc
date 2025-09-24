@@ -26,21 +26,25 @@ data = {
 }
 
 
+
 df_base = pd.DataFrame(data)
 
 # Get folder where this script is located
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# If your Excel files are in a 'data' subfolder
 DATA_FOLDER = os.path.join(BASE_DIR, "data")
 
 # Build full paths relative to the script
 cost_path = os.path.join(DATA_FOLDER, "cost_feathers_with_size.xlsx")
 cost_tot_path = os.path.join(DATA_FOLDER, "formatted_purchase_data.xlsx")
 
-# Load the Excel files
-cost = pd.read_excel(cost_path)
-cost_tot = pd.read_excel(cost_tot_path)
+@st.cache_data
+def load_excel_files():
+    cost = pd.read_excel(cost_path)
+    cost_tot = pd.read_excel(cost_tot_path)
+    return cost, cost_tot
+
+# Load the Excel files with caching
+cost, cost_tot = load_excel_files()
 
 months = [
     'Oct-20', 'Nov-20', 'Dec-20', 'Jan-21', 'Feb-21', 'Mar-21', 'Apr-21', 'May-21', 'Jun-21', 'Jul-21', 'Aug-21', 'Sep-21',
